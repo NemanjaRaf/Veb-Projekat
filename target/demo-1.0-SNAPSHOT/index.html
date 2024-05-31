@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello World</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+
+<div class="container">
+    <h1 class="naslov">RAF Blog DOMACI 6</h1>
+    <br>
+    <div class= "list-group" id="posts-list">
+    </div>
+    <br>
+
+<!--    // on button click, show form for creating post and hide button-->
+    <button class="btn btn-primary" id="add-post-button">Add post</button>
+
+
+<!--    // forma za kreiranje posta-->
+    <form method="POST" id="post-form" style="display: none;">
+        <div class="form-group">
+            <label for="author-title">Author</label>
+            <input type="text" class="form-control" id="author-title" placeholder="Enter author">
+
+            <label for="title-title">Title</label>
+            <input type="text" class="form-control" id="title-title" placeholder="Enter title">
+
+            <label for="post-content">Content</label>
+            <textarea class="form-control" id="post-content"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save post</button>
+    </form>
+    <br>
+    <br>
+
+</div>
+
+<script>
+
+    document.getElementById('add-post-button').addEventListener('click', function() {
+        // Show the form
+        document.getElementById('post-form').style.display = 'block';
+        // Hide the add button
+        this.style.display = 'none';
+    });
+
+    document.getElementById("post-form").addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const authorTitleElement = document.getElementById('author-title');
+        const titleTitleElement = document.getElementById('title-title');
+        const contentElement = document.getElementById('post-content');
+
+        const author = authorTitleElement.value;
+        const title = titleTitleElement.value;
+        const content = contentElement.value;
+
+        fetch('/api/posts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                author: author,
+                title: title,
+                content: content,
+                date: new Date()
+
+            })
+        }).then(response => {
+            return response.json();
+        }).then(post => {
+            // first hide the form for creating post
+            document.getElementById('post-form').style.display = 'none';
+            authorTitleElement.value = '';
+            titleTitleElement.value = '';
+            contentElement.value = '';
+
+            addPostElements(post)
+
+
+            // show the button for creating post
+            document.getElementById('add-post-button').style.display = 'block';
+        })
+    })
+
+
+
+    function addPostElements(post) {
+        const postList = document.getElementById('posts-list');
+
+        const postItem = document.createElement('div');
+        postItem.classList.add('list-group-item', 'list-group-item-action', 'flex-column', 'align-items-start');
+
+        // Create the container for the title and date
+        const dFlexContainer = document.createElement('div');
+        dFlexContainer.classList.add('d-flex', 'w-100', 'justify-content-between');
+
+        // Create and append the post title as a heading
+        const titleHeading = document.createElement('h5');
+        titleHeading.classList.add('mb-1');
+        titleHeading.innerText = post.title;
+
+        // Create and append the date of the post
+        const authorSmall = document.createElement('small');
+        authorSmall.classList.add('text-muted');
+        authorSmall.innerText = "Author: " + post.author;
+
+
+        // Append title and date to the container
+        dFlexContainer.appendChild(titleHeading);
+        dFlexContainer.appendChild(authorSmall);
+
+        // Create and append the content snippet
+        const contentParagraph = document.createElement('p');
+        contentParagraph.classList.add('mb-1');
+        contentParagraph.innerText = post.content;
+        if (post.content.length > 200) {
+            contentParagraph.innerText = post.content.substring(0, 200) + '...';
+        }
+
+        const dateSmall = document.createElement('small');
+        dateSmall.classList.add('text-muted');
+        dateSmall.innerText = new Date(post.date).toLocaleDateString();
+        dateSmall.style.display = 'none';
+
+        // COMMENTS
+        // Create and append the comments section
+        const commentsTitle = document.createElement('h6');
+        commentsTitle.innerText = "Comments";
+        commentsTitle.style.display = 'none';
+        const commentsDiv = document.createElement('div');
+        commentsDiv.classList.add('mb-1');
+        commentsDiv.style.display = 'none';
+
+        // create a div for new comment
+        const newCommentDiv = document.createElement('div');
+        const newCommentTitle = document.createElement('h6');
+        newCommentTitle.innerText = "New comment";
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'Name';
+        nameInput.classList.add('form-control');
+        const commentTextarea = document.createElement('textarea');
+        commentTextarea.placeholder = 'Comment';
+        commentTextarea.classList.add('form-control');
+        const commentButton = document.createElement('button');
+        commentButton.innerText = 'Comment';
+        commentButton.classList.add('btn', 'btn-primary');
+        newCommentDiv.appendChild(newCommentTitle);
+        newCommentDiv.appendChild(nameInput);
+        newCommentDiv.appendChild(document.createElement('br'));
+        newCommentDiv.appendChild(commentTextarea);
+        newCommentDiv.appendChild(document.createElement('br'));
+        newCommentDiv.appendChild(commentButton);
+        newCommentDiv.style.display = 'none';
+
+
+        commentButton.onclick = function() {
+            console.log('Comment button clicked');
+            console.log(post.id);
+            commentsDiv.style.display = 'block';
+            addComment(post.id, nameInput.value, commentTextarea.value).then(post => {
+                // Clear the commentsDiv except for the commentsTitle
+                commentsDiv.innerHTML = '';
+
+                if (post.comments) {
+                    post.comments.forEach(comment => {
+                        console.log(comment.commenterName + ": " + comment.content);
+                    });
+                } else {
+                    console.log("No comments for this post.");
+                }
+
+                post.comments.forEach(comment => {
+                    const commentP = document.createElement('p');
+                    // Access the commenterName and content properties of each comment
+                    commentP.innerText = comment.commenterName + ": " + comment.content;
+                    commentsDiv.appendChild(commentP);
+                });
+                commentTextarea.value = '';
+                nameInput.value = '';
+            });
+        };
+
+        const expandItem = document.createElement('a');
+        expandItem.classList.add('text-muted');
+        expandItem.innerText = "Opsirnije";
+        expandItem.style.cursor = 'pointer';
+        // details for item expand
+        expandItem.onclick = function() {
+            contentParagraph.innerText = post.content;
+            expandItem.style.display = 'none';
+            lesserItem.style.display = 'block';
+            dateSmall.style.display = 'block';
+            newCommentDiv.style.display = 'block';
+            commentsDiv.style.display = 'block';
+            commentsTitle.style.display = 'block';
+        };
+
+        const lesserItem = document.createElement('a');
+        lesserItem.classList.add('text-muted');
+        lesserItem.innerText = "Manje";
+        lesserItem.style.cursor = 'pointer';
+        lesserItem.style.display = 'none';
+        // details for item lesser
+        lesserItem.onclick = function() {
+            if (post.content.length > 200) {
+                contentParagraph.innerText = post.content.substring(0, 200) + '...';
+            }
+            lesserItem.style.display = 'none';
+            expandItem.style.display = 'block';
+            dateSmall.style.display = 'none';
+            newCommentDiv.style.display = 'none';
+            commentsDiv.style.display = 'none';
+            commentsTitle.style.display = 'none';
+        };
+
+        // Append elements to the list item
+        postItem.appendChild(dFlexContainer);
+        postItem.appendChild(dateSmall);
+        postItem.appendChild(contentParagraph);
+        postItem.appendChild(document.createElement('br'));
+        postItem.appendChild(expandItem);
+        postItem.appendChild(commentsTitle);
+        postItem.appendChild(commentsDiv);
+        postItem.appendChild(newCommentDiv);
+        postItem.appendChild(lesserItem);
+
+
+
+        postList.appendChild(postItem);
+    }
+
+    function addComment(postId, commenterName, content) {
+        return fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                commenterName: commenterName,
+                content: content
+            })
+        }).then(response => {
+            return response.json();
+        });
+    }
+
+</script>
+</body>
+</html>
+
+<style>
+    #posts-list {
+        max-width: 600px;
+        max-height: 400px;
+    }
+</style>

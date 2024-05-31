@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hello World</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        #posts-list {
+            max-width: 600px;
+            max-height: 400px;
+            margin-bottom: 20px; /* Add margin to avoid overlap */
+        }
+        .list-group-item {
+            position: relative;
+            z-index: 1;
+        }
+        #post-form {
+            position: relative;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="naslov">RAF Blog DOMACI 6</h1>
+    <br>
+    <div class="list-group" id="posts-list">
+    </div>
+    <br>
+
+    <!--    // forma za kreiranje posta-->
+    <form method="POST" id="login-form">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" class="form-control" id="username" placeholder="Enter username">
+
+            <label for="password">Password</label>
+            <input type="text" class="form-control" id="password" placeholder="Enter password">
+            <button id="login-btn" type="submit" class="btn btn-primary">Login</button>
+        </div>
+    </form>
+
+    <!--    // on button click, show form for creating post and hide button-->
+    <button class="btn btn-primary" id="add-post-button" style="display:none">Add post</button>
+
+    <!--    // forma za kreiranje posta-->
+    <form method="POST" id="post-form" style="display: none;">
+        <div class="form-group">
+            <label id="author-post">Author: </label>
+            <br>
+            <label for="title-title">Title</label>
+            <input type="text" class="form-control" id="title-title" placeholder="Enter title">
+
+            <label for="post-content">Content</label>
+            <textarea class="form-control" id="post-content"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save post</button>
+    </form>
+    <br>
+    <br>
+
+</div>
+<script>
+    var authorGlobal = '';
+    var jwtToken = null;
+
+    // LOGIN BUTTON
+    document.getElementById('login-btn').addEventListener('click', function(event) {
+        event.preventDefault();
+
+        // saljemo username i password na server
+        fetch('/api/posts/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            })
+        }).then(response => {
+            if (response.status === 422) {
+                alert('Invalid username or password');
+            } else {
+                return response.json();
+            }
+        }).then(data => {
+            // uspesno prijavljivanje
+            if (data) {
+                console.log(data.jwt); // JWT token
+                var sub = parseJwt(data.jwt).sub;
+                jwtToken = data.jwt;
+                authorGlobal = sub;
+
+                // Hide the login form
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('add-post-button').style.display = 'block';
+
+                // OVDE TREBA DA SE DODA KOD ZA PRIKAZIVANJE POSTOVA
+                fetch('/api/posts', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + jwtToken
+                    }
+                }).then(response => {
+                    return response.json();
+                }).then(posts => {
+                    posts.forEach(post => {
+                        addPostElements(post);
+                    });
+                }).catch(error => console.error('Error:', error));
+            } else {
+                document.getElementById('username').value = '';
+                document.getElementById('password').value = '';
+            }
+        }).catch(error => console.error('Error:', error));
+    });
+
+    function parseJwt(token) {
+        var base64Url = token.split('.')[1];
+        var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+
+        return JSON.parse(jsonPayload);
+    }
+
+    // NEW POST BUTTON
+    document.getElementById('add-post-button').addEventListener('click', function() {
+        // Show the form
+        document.getElementById('post-form').style.display = 'block';
+        // display author
+        document.getElementById('author-post').innerText = 'Author: ' + authorGlobal;
+        // Hide the add button
+        this.style.display = 'none';
+    });
+
+    // SAVE POST BUTTON
+    document.getElementById("post-form").addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const authorLabel = document.getElementById('author-post');
+        const titleTitleElement = document.getElementById('title-title');
+        const contentElement = document.getElementById('post-content');
+
+        const author = authorGlobal;
+        authorLabel.innerText = 'Author: ' + authorGlobal;
+        const title = titleTitleElement.value;
+        const content = contentElement.value;
+
+        fetch('/api/posts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + jwtToken
+            },
+            body: JSON.stringify({
+                author: author,
+                title: title,
+                content: content,
+                date: new Date()
+            })
+        }).then(response => {
+            return response.json();
+        }).then(post => {
+            // first hide the form for creating post
+            document.getElementById('post-form').style.display = 'none';
+            authorLabel.innerText = '';
+            titleTitleElement.value = '';
+            contentElement.value = '';
+
+            addPostElements(post);
+        });
+    });
+
+    function addPostElements(post) {
+        document.getElementById('add-post-button').style.display = 'block';
+        const postList = document.getElementById('posts-list');
+
+        const postItem = document.createElement('div');
+        postItem.classList.add('list-group-item', 'list-group-item-action', 'flex-column', 'align-items-start');
+
+        // Create the container for the title and date
+        const dFlexContainer = document.createElement('div');
+        dFlexContainer.classList.add('d-flex', 'w-100', 'justify-content-between');
+
+        // Create and append the post title as a heading
+        const titleHeading = document.createElement('h5');
+        titleHeading.classList.add('mb-1');
+        titleHeading.innerText = post.title;
+
+        // Create and append the date of the post
+        const authorSmall = document.createElement('small');
+        authorSmall.classList.add('text-muted');
+        authorSmall.innerText = "Author: " + authorGlobal;
+
+        // Append title and date to the container
+        dFlexContainer.appendChild(titleHeading);
+        dFlexContainer.appendChild(authorSmall);
+
+        // Create and append the content snippet
+        const contentParagraph = document.createElement('p');
+        contentParagraph.classList.add('mb-1');
+        contentParagraph.innerText = post.content;
+        if (post.content.length > 200) {
+            contentParagraph.innerText = post.content.substring(0, 200) + '...';
+        }
+
+        const dateSmall = document.createElement('small');
+        dateSmall.classList.add('text-muted');
+        dateSmall.innerText = new Date(post.date).toLocaleDateString();
+        dateSmall.style.display = 'none';
+
+        // COMMENTS
+        // Create and append the comments section
+        const commentsTitle = document.createElement('h6');
+        commentsTitle.innerText = "Comments";
+        commentsTitle.style.display = 'none';
+        const commentsDiv = document.createElement('div');
+        commentsDiv.classList.add('mb-1');
+        commentsDiv.style.display = 'none';
+
+        // create a div for new comment
+        const newCommentDiv = document.createElement('div');
+        const newCommentTitle = document.createElement('h6');
+        newCommentTitle.innerText = "New comment";
+        const nameInput = document.createElement('h7');
+        nameInput.innerText = "Author: " + authorGlobal;
+        const commentTextarea = document.createElement('textarea');
+        commentTextarea.placeholder = 'Comment';
+        commentTextarea.classList.add('form-control');
+        const commentButton = document.createElement('button');
+        commentButton.innerText = 'Comment';
+        commentButton.classList.add('btn', 'btn-primary');
+        newCommentDiv.appendChild(newCommentTitle);
+        newCommentDiv.appendChild(nameInput);
+        newCommentDiv.appendChild(document.createElement('br'));
+        newCommentDiv.appendChild(commentTextarea);
+        newCommentDiv.appendChild(document.createElement('br'));
+        newCommentDiv.appendChild(commentButton);
+        newCommentDiv.style.display = 'none';
+
+        commentButton.onclick = function() {
+            console.log('Comment button clicked');
+            console.log(post.id);
+            commentsDiv.style.display = 'block';
+
+            addComment(post.id, commentTextarea.value)
+                .then(() => {
+                    commentsDiv.innerHTML = '';
+
+                    // Fetch all comments for the post
+                    return fetchComments(post.id);
+                })
+                .then(comments => {
+                    if (comments.length > 0) {
+                        comments.forEach(comment => {
+                            console.log(authorGlobal + ": " + comment.content);
+                            const commentP = document.createElement('p');
+                            commentP.innerText = authorGlobal + ": " + comment.content;
+                            commentsDiv.appendChild(commentP);
+                        });
+                    } else {
+                        console.log("No comments for this post.");
+                    }
+                    commentTextarea.value = '';
+                })
+                .catch(error => console.error('Error:', error));
+        };
+
+        const expandItem = document.createElement('a');
+        expandItem.classList.add('text-muted');
+        expandItem.innerText = "Opsirnije";
+        expandItem.style.cursor = 'pointer';
+        // details for item expand
+        expandItem.onclick = function() {
+            contentParagraph.innerText = post.content;
+            expandItem.style.display = 'none';
+            lesserItem.style.display = 'block';
+            dateSmall.style.display = 'block';
+            newCommentDiv.style.display = 'block';
+            commentsDiv.style.display = 'block';
+            commentsTitle.style.display = 'block';
+
+            fetchComments(post.id).then(comments => {
+                commentsDiv.innerHTML = ''; // Clear previous comments
+                comments.forEach(comment => {
+                    const commentP = document.createElement('p');
+                    commentP.innerText = authorGlobal + ": " + comment.content;
+                    commentsDiv.appendChild(commentP);
+                });
+            }).catch(error => console.error('Error fetching comments:', error));
+            document.getElementById('add-post-button').style.display = 'block';
+        };
+
+        const lesserItem = document.createElement('a');
+        lesserItem.classList.add('text-muted');
+        lesserItem.innerText = "Manje";
+        lesserItem.style.cursor = 'pointer';
+        lesserItem.style.display = 'none';
+        // details for item lesser
+        lesserItem.onclick = function() {
+            if (post.content.length > 200) {
+                contentParagraph.innerText = post.content.substring(0, 200) + '...';
+            }
+            lesserItem.style.display = 'none';
+            expandItem.style.display = 'block';
+            dateSmall.style.display = 'none';
+            newCommentDiv.style.display = 'none';
+            commentsDiv.style.display = 'none';
+            commentsTitle.style.display = 'none';
+        };
+
+        // Append elements to the list item
+        postItem.appendChild(dFlexContainer);
+        postItem.appendChild(dateSmall);
+        postItem.appendChild(contentParagraph);
+        postItem.appendChild(document.createElement('br'));
+        postItem.appendChild(expandItem);
+        postItem.appendChild(commentsTitle);
+        postItem.appendChild(commentsDiv);
+        postItem.appendChild(newCommentDiv);
+        postItem.appendChild(lesserItem);
+
+        postList.appendChild(postItem);
+        postList.appendChild(document.createElement('br'));
+        postList.appendChild(document.getElementById('add-post-button'));
+        postList.appendChild(document.getElementById('post-form'));
+    }
+
+    function addComment(postId, content) {
+        return fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + jwtToken
+            },
+            body: JSON.stringify({
+                postId: postId,
+                content: content
+            })
+        }).then(response => {
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(text) });
+            }
+            return response.json();
+        });
+    }
+
+    function fetchComments(postId) {
+        return fetch('/api/posts/' + postId + '/comments', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + jwtToken
+            }
+        }).then(response => {
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(text) });
+            }
+            return response.json();
+        });
+    }
+
+</script>
+</body>
+</html>
